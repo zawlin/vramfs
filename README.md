@@ -6,3 +6,7 @@ A few changes from the vramfs:
 * convert to pure ramfs
 * memory grow dynmically
 * some bugs in the original where file permissions were not copied properly.
+
+# todo
+* dir size not getting reported properly. `vram_readdir()` buggy?
+* performance is slower than /dev/shm. check if overhead of fuse can account for this disparity.
