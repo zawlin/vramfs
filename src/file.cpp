@@ -1,6 +1,8 @@
 #include "entry.hpp"
 #include "util.hpp"
-
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 namespace vram {
     namespace entry {
         file_ref file_t::make(dir_ptr parent, const string& name) {
@@ -111,7 +113,7 @@ namespace vram {
         void file_t::sync() {
             // Waits for all asynchronous writes to finish, because they must
             // complete before the last write does (OpenCL guarantee)
-            last_written_block->sync();
+            //last_written_block->sync();
         }
 
         memory::block_ref file_t::get_block(off_t off) const {

@@ -7,12 +7,6 @@
  */
 
 
-#ifdef DEBUG
-    // Use minimal OpenCL implementation for better debugging with valgrind
-    #include "CL/debugcl.hpp"
-#else
-    #include <CL/cl2.hpp>
-#endif
 
 #include <memory>
 
@@ -21,18 +15,9 @@ namespace vram {
         class block;
         typedef std::shared_ptr<block> block_ref;
 
-        // Check if current machine supports VRAM allocation
-        bool is_available();
-
-        // Set the device to use
-        void set_device(size_t num);
-
-        // Returns a list of device names
-        std::vector<std::string> list_devices();
-
         // Total blocks and blocks currently free
-        int pool_size();
-        int pool_available();
+        size_t pool_size();
+        size_t pool_available();
 
         // Allocate pool of memory blocks, returns actual amount allocated (in bytes)
         size_t increase_pool(size_t size);
@@ -49,8 +34,9 @@ namespace vram {
 
         public:
             // Best performance/size balance
-            static const size_t size = 128 * 1024;
+            static size_t size;// 128 * 1024;
 
+            static size_t disk_size;
             block(const block& other) = delete;
 
             ~block();
@@ -61,14 +47,10 @@ namespace vram {
             void write(off_t offset, size_t size, const void* data, bool async = false);
 
             // Wait for all writes to this block to complete
-            void sync();
 
         private:
-            cl::Buffer buffer;
-            cl::Event last_write;
-
+            char* buffer;
             // True until first write (until then it contains leftover data from last use)
-            bool dirty = true;
 
             block();
         };

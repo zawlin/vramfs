@@ -1,9 +1,9 @@
 CC = g++
-CFLAGS = -Wall -Wpedantic -Werror -std=c++11 $(shell pkg-config fuse --cflags) -I include/
-LDFLAGS = -flto $(shell pkg-config fuse --libs) -l OpenCL
+CFLAGS = -Wall  -std=c++11 $(shell pkg-config fuse --cflags) -I include/
+LDFLAGS = -flto $(shell pkg-config fuse --libs)
 
 ifeq ($(DEBUG), 1)
-	CFLAGS += -g -DDEBUG -Wall -Werror -std=c++11
+	CFLAGS += -g -DDEBUG -Wall  -std=c++11
 else
 	CFLAGS += -march=native -O2 -flto
 endif

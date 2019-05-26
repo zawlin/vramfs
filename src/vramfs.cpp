@@ -13,6 +13,7 @@
 // Internal dependencies
 #include "vramfs.hpp"
 
+using namespace std;
 using namespace vram;
 
 /*
@@ -192,7 +193,7 @@ static int vram_readdir(const char* path, void* buf, fuse_fill_dir_t filler, off
  * Create file
  */
 
-static int vram_create(const char* path, mode_t, struct fuse_file_info* fi) {
+static int vram_create(const char* path, mode_t mode, struct fuse_file_info* fi) {
     lock_guard<mutex> local_lock(fsmutex);
 
     // Truncate any existing file entry or fail if it's another type
@@ -215,7 +216,7 @@ static int vram_create(const char* path, mode_t, struct fuse_file_info* fi) {
     auto context = fuse_get_context();
     file->user(context->uid);
     file->group(context->gid);
-
+    file->mode(mode);
     // Open it by assigning new file handle
     fi->fh = reinterpret_cast<uint64_t>(new file_session(file));
 
@@ -226,7 +227,7 @@ static int vram_create(const char* path, mode_t, struct fuse_file_info* fi) {
  * Create directory
  */
 
-static int vram_mkdir(const char* path, mode_t) {
+static int vram_mkdir(const char* path, mode_t mode) {
     lock_guard<mutex> local_lock(fsmutex);
 
     // Fail if entry with that name already exists
@@ -248,7 +249,7 @@ static int vram_mkdir(const char* path, mode_t) {
     auto context = fuse_get_context();
     new_dir->user(context->uid);
     new_dir->group(context->gid);
-
+    new_dir->mode(mode);
     return 0;
 }
 
@@ -449,12 +450,12 @@ static struct vram_operations : fuse_operations {
         chown = vram_chown;
         readdir = vram_readdir;
         create = vram_create;
+        open = vram_open;
         mkdir = vram_mkdir;
         symlink = vram_symlink;
         unlink = vram_unlink;
         rmdir = vram_rmdir;
         rename = vram_rename;
-        open = vram_open;
         read = vram_read;
         write = vram_write;
         fsync = vram_fsync;
@@ -467,26 +468,13 @@ static int print_help() {
     std::cerr <<
         "usage: vramfs <mountdir> <size> [-d <device>] [-f]\n\n"
         "  mountdir    - directory to mount file system, must be empty\n"
-        "  size        - size of the disk in bytes\n"
-        "  -d <device> - specifies identifier of device to use\n"
-        "  -f          - flag that forces mounting, with a smaller size if needed\n\n"
+        "  size        - size of initial disk in bytes. This disk grows by this amount everytime available space is exhausted.\n"
+        "  blksize     - size of each block.\n"
         "The size may be followed by one of the following multiplicative suffixes: "
         "K=1024, KB=1000, M=1024*1024, MB=1000*1000, G=1024*1024*1024, GB=1000*1000*1000. "
         "It's rounded up to the nearest multiple of the block size.\n"
     << std::endl;
 
-    auto devices = memory::list_devices();
-
-    if (!devices.empty()) {
-        std::cerr << "device list: \n";
-
-        for (size_t i = 0; i < devices.size(); ++i) {
-            std::cerr << "  " << i << ": " << devices[i] << "\n";
-        }
-        std::cerr << std::endl;
-    } else {
-        std::cerr << "No suitable devices found." << std::endl;
-    }
 
 
     return 1;
@@ -512,40 +500,36 @@ static size_t parse_size(const string& param) {
 
 int main(int argc, char* argv[]) {
     // Check parameter and parse parameters
-    if (argc < 3 || argc > 6) return print_help();
+    if (argc < 3 || argc > 4) return print_help();
     if (!std::regex_match(argv[2], size_regex)) return print_help();
-    if (argc == 4 && strcmp(argv[3], "-f") != 0) return print_help();
-    if (argc == 5 && strcmp(argv[3], "-d") != 0) return print_help();
-    if (argc == 6) {
-        if (strcmp(argv[3], "-d") != 0 && strcmp(argv[5], "-f") != 0) {
-            return print_help();
-        }
+    if (!std::regex_match(argv[3], size_regex)) return print_help();
+    if (argc == 4) {
+
+        //size_t blksz = parse_size(argv[3]);
+        size_t blksz = atoi(argv[3]);
+        cout<<blksz<<endl;
+        memory::block::size=blksz*1024;// blksz;
     }
 
     size_t disk_size = parse_size(argv[2]);
+    memory::block::disk_size = disk_size;
     bool force_allocate = (argc == 4 || argc == 6);
 
     if (argc == 5 || argc == 6) {
-        memory::set_device(atoi(argv[4]));
+        //memory::set_device(atoi(argv[4]));
     }
 
     // Check for OpenCL supported GPU and allocate memory
-    if (!memory::is_available()) {
-        std::cerr << "no opencl capable gpu found" << std::endl;
-        return 1;
-    } else {
-        std::cout << "allocating vram..." << std::endl;
 
-        size_t actual_size = memory::increase_pool(disk_size);
+    size_t actual_size = memory::increase_pool(disk_size);
 
-        if (actual_size < disk_size) {
-            if (force_allocate) {
-                std::cerr << "warning: only allocated " << actual_size << " bytes" << std::endl;
-            } else {
-                std::cerr << "error: could not allocate more than " << actual_size << " bytes" << std::endl;
-                std::cerr << "cleaning up..." << std::endl;
-                return 1;
-            }
+    if (actual_size < disk_size) {
+        if (force_allocate) {
+            std::cerr << "warning: only allocated " << actual_size << " bytes" << std::endl;
+        } else {
+            std::cerr << "error: could not allocate more than " << actual_size << " bytes" << std::endl;
+            std::cerr << "cleaning up..." << std::endl;
+            return 1;
         }
     }
 
